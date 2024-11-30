@@ -6,14 +6,6 @@ import (
 	"time"
 )
 
-type Parcel struct {
-	Number    int
-	Client    int
-	Status    string
-	Address   string
-	CreatedAt string
-}
-
 type ParcelStore struct {
 	db *sql.DB
 }
@@ -22,9 +14,9 @@ func NewParcelStore(db *sql.DB) ParcelStore {
 	return ParcelStore{db: db}
 }
 
-func (s ParcelStore) Add(p Parcel) (int, error) {
+func (s ParcelStore) Add(parcel Parcel) (int, error) {
 	query := `INSERT INTO parcel (client, status, address, created_at) VALUES (?, ?, ?, ?)`
-	res, err := s.db.Exec(query, p.Client, ParcelStatusRegistered, p.Address, time.Now().Format(time.RFC3339))
+	res, err := s.db.Exec(query, parcel.Client, parcel.Status, parcel.Address, parcel.CreatedAt)
 	if err != nil {
 		return 0, err
 	}
@@ -71,68 +63,18 @@ func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
 
 func (s ParcelStore) SetStatus(number int, status string) error {
 	query := `UPDATE parcel SET status = ? WHERE number = ?`
-	res, err := s.db.Exec(query, status, number)
-	if err != nil {
-		return err
-	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return errors.New("parcel not found or status not updated")
-	}
-	return nil
+	_, err := s.db.Exec(query, status, number)
+	return err
 }
 
 func (s ParcelStore) SetAddress(number int, address string) error {
-	// Проверяем текущий статус посылки
-	parcel, err := s.Get(number)
-	if err != nil {
-		return err
-	}
-	if parcel.Status != ParcelStatusRegistered {
-		return errors.New("address can only be changed for parcels with status 'registered'")
-	}
-
-	// Обновляем адрес
-	query := `UPDATE parcel SET address = ? WHERE number = ?`
-	res, err := s.db.Exec(query, address, number)
-	if err != nil {
-		return err
-	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return errors.New("parcel not found or address not updated")
-	}
-	return nil
+	query := `UPDATE parcel SET address = ? WHERE number = ? AND status = ?`
+	_, err := s.db.Exec(query, address, number, ParcelStatusRegistered)
+	return err
 }
 
 func (s ParcelStore) Delete(number int) error {
-	// Проверяем текущий статус посылки
-	parcel, err := s.Get(number)
-	if err != nil {
-		return err
-	}
-	if parcel.Status != ParcelStatusRegistered {
-		return errors.New("parcel can only be deleted with status 'registered'")
-	}
-
-	// Удаляем посылку
-	query := `DELETE FROM parcel WHERE number = ?`
-	res, err := s.db.Exec(query, number)
-	if err != nil {
-		return err
-	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return errors.New("parcel not found or not deleted")
-	}
-	return nil
+	query := `DELETE FROM parcel WHERE number = ? AND status = ?`
+	_, err := s.db.Exec(query, number, ParcelStatusRegistered)
+	return err
 }
