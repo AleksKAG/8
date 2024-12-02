@@ -6,16 +6,14 @@ import (
 	"time"
 )
 
+type ParcelStore struct {
+	db *sql.DB
 type Parcel struct {
-	Number    int
+	ID        int
 	Client    int
 	Status    string
 	Address   string
-	CreatedAt string
-}
-
-type ParcelStore struct {
-	db *sql.DB
+	CreatedAt time.Time
 }
 
 func NewParcelStore(db *sql.DB) ParcelStore {
@@ -23,116 +21,128 @@ func NewParcelStore(db *sql.DB) ParcelStore {
 }
 
 func (s ParcelStore) Add(p Parcel) (int, error) {
-	query := `INSERT INTO parcel (client, status, address, created_at) VALUES (?, ?, ?, ?)`
-	res, err := s.db.Exec(query, p.Client, ParcelStatusRegistered, p.Address, time.Now().Format(time.RFC3339))
+	// реализуйте добавление строки в таблицу parcel, используйте данные из переменной p
+func (s ParcelStore) AddParcel(p Parcel) (int, error) {
+	result, err := s.db.Exec("INSERT INTO parcel (client, status, address) VALUES (?, ?, ?)", p.Client, p.Status, p.Address)
 	if err != nil {
 		return 0, err
 	}
-	id, err := res.LastInsertId()
+
+	// верните идентификатор последней добавленной записи
+	return 0, nil
+	lastID, err := result.LastInsertId()
 	if err != nil {
 		return 0, err
 	}
-	return int(id), nil
+
+	return int(lastID), nil
 }
 
 func (s ParcelStore) Get(number int) (Parcel, error) {
-	query := `SELECT number, client, status, address, created_at FROM parcel WHERE number = ?`
-	row := s.db.QueryRow(query, number)
-
-	var p Parcel
-	err := row.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt)
+func (s ParcelStore) GetParcel(number int) (Parcel, error) {
+	// реализуйте чтение строки по заданному number
+	// здесь из таблицы должна вернуться только одна строка
+	row := s.db.QueryRow("SELECT * FROM parcel WHERE number = ?", number)
+	var id, client int
+	var status, address string
+	err := row.Scan(&id, &client, &status, &address)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return p, errors.New("parcel not found")
-		}
-		return p, err
+		return Parcel{}, err
 	}
+
+	// заполните объект Parcel данными из таблицы
+	p := Parcel{}
+	p := Parcel{
+		ID:        id,
+		Client:    client,
+		Status:    status,
+		Address:   address,
+		CreatedAt: time.Now().UTC(),
+	}
+
 	return p, nil
 }
 
 func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
-	query := `SELECT number, client, status, address, created_at FROM parcel WHERE client = ?`
-	rows, err := s.db.Query(query, client)
+func (s ParcelStore) GetByClientParcel(client int) ([]Parcel, error) {
+	// реализуйте чтение строк из таблицы parcel по заданному client
+	// здесь из таблицы может вернуться несколько строк
+	rows, err := s.db.Query("SELECT * FROM parcel WHERE client = ?", client)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var parcels []Parcel
+	// заполните срез Parcel данными из таблицы
+	var res []Parcel
+
 	for rows.Next() {
-		var p Parcel
-		if err := rows.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt); err != nil {
+		var id, client int
+		var status, address string
+
+		err := rows.Scan(&id, &client, &status, &address)
+		if err != nil {
 			return nil, err
 		}
-		parcels = append(parcels, p)
+
+		p := Parcel{
+			ID:        id,
+			Client:    client,
+			Status:    status,
+			Address:   address,
+			CreatedAt: time.Now().UTC(),
+		}
+		res = append(res, p)
 	}
-	return parcels, nil
+
+	return res, nil
 }
 
 func (s ParcelStore) SetStatus(number int, status string) error {
-	query := `UPDATE parcel SET status = ? WHERE number = ?`
-	res, err := s.db.Exec(query, status, number)
-	if err != nil {
-		return err
-	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return errors.New("parcel not found or status not updated")
-	}
+func (s ParcelStore) SetStatusParcel(number int, status string) error {
+	// реализуйте обновление статуса в таблице parcel
+
 	return nil
+	_, err := s.db.Exec("UPDATE parcel SET status = ? WHERE number = ?", status, number)
+	return err
 }
 
 func (s ParcelStore) SetAddress(number int, address string) error {
-	// Проверяем текущий статус посылки
-	parcel, err := s.Get(number)
+func (s ParcelStore) SetAddressParcel(number int, address string) error {
+	// реализуйте обновление адреса в таблице parcel
+	// менять адрес можно только если значение статуса registered
+
+	return nil
+	var currentStatus string
+	err := s.db.QueryRow("SELECT status FROM parcel WHERE number = ?", number).Scan(&currentStatus)
 	if err != nil {
 		return err
-	}
-	if parcel.Status != ParcelStatusRegistered {
-		return errors.New("address can only be changed for parcels with status 'registered'")
 	}
 
-	// Обновляем адрес
-	query := `UPDATE parcel SET address = ? WHERE number = ?`
-	res, err := s.db.Exec(query, address, number)
-	if err != nil {
-		return err
+	if currentStatus != "registered" {
+		return errors.New("нельзя менять адрес для посылки со статусом " + currentStatus)
 	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return errors.New("parcel not found or address not updated")
-	}
-	return nil
+
+	_, err = s.db.Exec("UPDATE parcel SET address = ? WHERE number = ?", address, number)
+	return err
 }
 
 func (s ParcelStore) Delete(number int) error {
-	// Проверяем текущий статус посылки
-	parcel, err := s.Get(number)
+func (s ParcelStore) DeleteParcel(number int) error {
+	// реализуйте удаление строки из таблицы parcel
+	// удалять строку можно только если значение статуса registered
+
+	return nil
+	var currentStatus string
+	err := s.db.QueryRow("SELECT status FROM parcel WHERE number = ?", number).Scan(&currentStatus)
 	if err != nil {
 		return err
-	}
-	if parcel.Status != ParcelStatusRegistered {
-		return errors.New("parcel can only be deleted with status 'registered'")
 	}
 
-	// Удаляем посылку
-	query := `DELETE FROM parcel WHERE number = ?`
-	res, err := s.db.Exec(query, number)
-	if err != nil {
-		return err
+	if currentStatus != "registered" {
+		return errors.New("нельзя удалять посылку со статусом " + currentStatus)
 	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return errors.New("parcel not found or not deleted")
-	}
-	return nil
+
+	_, err = s.db.Exec("DELETE FROM parcel WHERE number = ?", number)
+	return err
 }
