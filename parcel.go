@@ -24,7 +24,7 @@ func NewParcelStore(db *sql.DB) ParcelStore {
 
 func (s ParcelStore) Add(p Parcel) (int, error) {
 	query := `INSERT INTO parcel (client, status, address, created_at) VALUES (?, ?, ?, ?)`
-	res, err := s.db.Exec(query, p.Client, ParcelStatusRegistered, p.Address, time.Now().Format(time.RFC3339))
+	res, err := s.db.Exec(query, p.Client, ParcelStatusRegistered, p.Address, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		return 0, err
 	}
@@ -86,7 +86,6 @@ func (s ParcelStore) SetStatus(number int, status string) error {
 }
 
 func (s ParcelStore) SetAddress(number int, address string) error {
-	// Проверяем текущий статус посылки
 	parcel, err := s.Get(number)
 	if err != nil {
 		return err
@@ -95,7 +94,6 @@ func (s ParcelStore) SetAddress(number int, address string) error {
 		return errors.New("address can only be changed for parcels with status 'registered'")
 	}
 
-	// Обновляем адрес
 	query := `UPDATE parcel SET address = ? WHERE number = ?`
 	res, err := s.db.Exec(query, address, number)
 	if err != nil {
@@ -112,7 +110,6 @@ func (s ParcelStore) SetAddress(number int, address string) error {
 }
 
 func (s ParcelStore) Delete(number int) error {
-	// Проверяем текущий статус посылки
 	parcel, err := s.Get(number)
 	if err != nil {
 		return err
@@ -121,7 +118,6 @@ func (s ParcelStore) Delete(number int) error {
 		return errors.New("parcel can only be deleted with status 'registered'")
 	}
 
-	// Удаляем посылку
 	query := `DELETE FROM parcel WHERE number = ?`
 	res, err := s.db.Exec(query, number)
 	if err != nil {
